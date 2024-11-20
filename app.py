@@ -31,23 +31,35 @@ connections.connect(
    token=TOKEN
 )
 
-## 1. Define a minimum expandable schema.
+# Define fields based on insert_embeddings data structure
+fields = [
+    FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=False),
+    FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1024),  # dimension matches ImageEncoder output
+]
 
+# Create schema with dynamic fields for metadata
 schema = CollectionSchema(
-   enable_dynamic_field=True,
+    fields=fields,
+    enable_dynamic_field=True  # Enable dynamic fields for metadata
 )
 
-## 2. Create a collection.
-milvus_client = Collection(COLLECTION_NAME, schema)
+# Create collection
+collection = Collection(COLLECTION_NAME, schema)
 
-## 3. Index the collection.
-milvus_client.create_index(
-   field_name="vector",
-   index_params={
-       "Index_type": "AUTOINDEX",
-       "Metric_type": "COSINE",
-       }
+# Create index for vector searches
+collection.create_index(
+    field_name="vector",
+    index_params={
+        "metric_type": "COSINE",
+        "index_type": "AUTOINDEX"
+    }
 )
+
+# Load collection for searching
+collection.load()
+
+# Set the milvus_client to the collection for the rest of the functions
+milvus_client = collection
 
 # # Initialize Milvus client
 # milvus_client = MilvusClient(
