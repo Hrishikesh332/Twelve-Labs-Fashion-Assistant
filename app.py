@@ -11,6 +11,9 @@ from dotenv import load_dotenv
 import os
 from pymilvus import MilvusClient
 from pymilvus import connections
+from pymilvus import (
+   FieldSchema, DataType, 
+   CollectionSchema, Collection)
 
 load_dotenv()
 
@@ -28,40 +31,57 @@ connections.connect(
    token=TOKEN
 )
 
+## 1. Define a minimum expandable schema.
 
-# Initialize Milvus client
-milvus_client = MilvusClient(
-    uri=URL,
-    token=TOKEN
+schema = CollectionSchema(
+   enable_dynamic_field=True,
 )
 
-collection_name = COLLECTION_NAME
+## 2. Create a collection.
+milvus_client = Collection(COLLECTION_NAME, schema)
 
-# Check if collection exists and drop if necessary
-if milvus_client.has_collection(collection_name):
-    milvus_client.drop_collection(collection_name)
-
-# Create collection with proper schema
-milvus_client.create_collection(
-    collection_name=collection_name,
-    dimension=1024,
-    vector_field_name="vector",
-    enable_dynamic_field=True
-)
-
-# Create index
+## 3. Index the collection.
 milvus_client.create_index(
-    collection_name=collection_name,
-    field_name="vector",
-    index_params={
-        "metric_type": "COSINE",
-        "index_type": "IVF_FLAT",
-        "params": {"nlist": 128}
-    }
-)
+   field_name=”vector”,
+   index_params={
+       “Index_type”: “AUTOINDEX”,
+       “Metric_type”: “COSINE”,
+       }
 
-# Load collection
-milvus_client.load_collection(collection_name)
+
+# # Initialize Milvus client
+# milvus_client = MilvusClient(
+#     uri=URL,
+#     token=TOKEN
+# )
+
+# collection_name = COLLECTION_NAME
+
+# # Check if collection exists and drop if necessary
+# if milvus_client.has_collection(collection_name):
+#     milvus_client.drop_collection(collection_name)
+
+# # Create collection with proper schema
+# milvus_client.create_collection(
+#     collection_name=collection_name,
+#     dimension=1024,
+#     vector_field_name="vector",
+#     enable_dynamic_field=True
+# )
+
+# # Create index
+# milvus_client.create_index(
+#     collection_name=collection_name,
+#     field_name="vector",
+#     index_params={
+#         "metric_type": "COSINE",
+#         "index_type": "IVF_FLAT",
+#         "params": {"nlist": 128}
+#     }
+# )
+
+# # Load collection
+# milvus_client.load_collection(collection_name)
 
 st.write(f"Collection '{collection_name}' created successfully")
 st.write("Hello")
