@@ -339,11 +339,11 @@ def insert_embeddings(embeddings, video_url):
     except Exception as e:
         return False, str(e)
 
+
 def search_similar_videos(image, top_k=5):
     encoder = ImageEncoder()
     features = encoder.encode(image)
     
-    # Modified search call for Collection object
     results = milvus_client.search(
         data=[features],
         anns_field="vector",
@@ -361,8 +361,14 @@ def search_similar_videos(image, top_k=5):
                     'Start Time': f"{metadata['start_time']:.1f}s",
                     'End Time': f"{metadata['end_time']:.1f}s",
                     'Video URL': metadata['video_url'],
-                    'Similarity': f"{(1 - float(hit.distance)) * 100:.2f}%"
+                    'Similarity': float(f"{(1 - float(hit.distance)) * 100:.2f}")  # Convert to float for sorting
                 })
+    
+    search_results.sort(key=lambda x: x['Similarity'], reverse=True)
+    
+
+    for result in search_results:
+        result['Similarity'] = f"{result['Similarity']:.2f}%"
     
     return search_results
 
