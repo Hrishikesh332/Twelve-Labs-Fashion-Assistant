@@ -10,9 +10,12 @@ from urllib.parse import urlparse
 import uuid
 from dotenv import load_dotenv
 import os
+from pymilvus import connections
 
 
 load_dotenv()
+
+from milvus import default_server
 
 
 TWELVELABS_API_KEY = os.getenv('TWELVELABS_API_KEY')
@@ -21,17 +24,23 @@ COLLECTION_NAME = os.getenv('COLLECTION_NAME')
 MILVUS_HOST = os.getenv('MILVUS_HOST')
 MILVUS_PORT = os.getenv('MILVUS_PORT')
 
-milvus_client = MilvusClient(
-    uri=f"http://{MILVUS_HOST}:{MILVUS_PORT}",
-    db_name=MILVUS_DB_NAME
+
+milvus_client = MilvusClient("milvus_twelvelabs_demo5.db")
+
+collection_name = "twelvelabs_collection_dress5"
+
+if milvus_client.has_collection(collection_name=collection_name):
+    milvus_client.drop_collection(collection_name=collection_name)
+
+
+milvus_client.create_collection(
+    collection_name=collection_name,
+    dimension=1024
 )
 
-st.set_page_config(
-    page_title="Fashion AI Assistant",
-    page_icon="👗",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.write(f"Collection '{collection_name}' created successfully")
+st.write("Hello")
+
 
 st.markdown("""
     <style>
@@ -88,14 +97,80 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-class ModifiedResNet34:
+
+def generate_embedding(video_url):
+    try:
+        twelvelabs_client = TwelveLabs(api_key=TWELVELABS_API_KEY)
+        print(f"Processing video URL: {video_url}")
+     
+        task = twelvelabs_client.embed.task.create(
+            engine_name="Marengo-retrieval-2.6",
+            video_url=video_url
+        )
+        print(f"Created task: id={task.id} engine_name={task.engine_name} status={task.status}")
+  
+    
+        status = task.wait_for_done(
+            sleep_interval=2,
+            callback=lambda t: print(f"Status={t.status}")
+        )
+        print(task)
+        print(f"Embedding done: {status}")
+
+
+        task = task.retrieve()
+        
+        if task.video_embedding is not None and task.video_embedding.segments is not None:
+            embeddings = []
+            for segment in task.video_embedding.segments:
+                embeddings.append({
+                    'embedding': segment.embeddings_float,
+                    'start_offset_sec': segment.start_offset_sec,
+                    'end_offset_sec': segment.end_offset_sec,
+                    'embedding_scope': segment.embedding_scope,
+                    'video_url': video_url
+                })
+            return embeddings, task, None
+        else:
+            return None, None, "No embeddings found in task result"
+            
+    except Exception as e:
+        print(f"Error in generate_embedding: {str(e)}")
+        return None, None, str(e)
+
+def insert_embeddings(embeddings, video_url):
+    data = []
+    timestamp = int(time.time())
+    
+    for i, emb in enumerate(embeddings):
+        data.append({
+            "id": int(f"{timestamp}{i:03d}"),  
+            "vector": emb['embedding'],
+            "metadata": {
+                "scope": emb['embedding_scope'],
+                "start_time": emb['start_offset_sec'],
+                "end_time": emb['end_offset_sec'],
+                "video_url": video_url
+            }
+        })
+
+    try:
+        insert_result = milvus_client.insert(
+            collection_name=COLLECTION_NAME,
+            data=data
+        )
+        return True, len(data)
+    except Exception as e:
+        return False, str(e)
+
+class ImageEncoder:
     def __init__(self):
         self.model = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
         self.model = torch.nn.Sequential(*list(self.model.children())[:-1])
         self.projection = torch.nn.Linear(512, 1024)
         self.model.eval()
     
-    def __call__(self, image):
+    def encode(self, image):
         if isinstance(image, str):
             img = Image.open(image)
         else:
@@ -117,50 +192,9 @@ class ModifiedResNet34:
         
         return features.numpy()
 
-def get_direct_drive_link(sharing_url):
-    file_id = None
-    if 'drive.google.com' in sharing_url:
-        if '/file/d/' in sharing_url:
-            file_id = sharing_url.split('/file/d/')[1].split('/')[0]
-        elif 'id=' in sharing_url:
-            file_id = sharing_url.split('id=')[1].split('&')[0]
-    
-    if not file_id:
-        raise ValueError("Could not extract file ID from Google Drive URL")
-    
-    return f"https://drive.google.com/uc?export=download&id={file_id}"
-
-def generate_embedding(drive_url):
-    try:
-        direct_url = get_direct_drive_link(drive_url)
-        twelvelabs_client = TwelveLabs(api_key=TWELVELABS_API_KEY)
-
-        task = twelvelabs_client.embed.task.create(
-            engine_name="Marengo-retrieval-2.6",
-            video_url=direct_url
-        )
-
-        with st.spinner("Processing video..."):
-            status = task.wait_for_done(sleep_interval=2)
-            task_result = twelvelabs_client.embed.task.retrieve(task.id)
-
-        embeddings = []
-        for segment in task_result.video_embedding.segments:
-            embeddings.append({
-                'embedding': segment.embeddings_float,
-                'start_offset_sec': segment.start_offset_sec,
-                'end_offset_sec': segment.end_offset_sec,
-                'embedding_scope': segment.embedding_scope,
-                'video_url': drive_url
-            })
-
-        return embeddings, task_result, None
-    except Exception as e:
-        return None, None, str(e)
-
-def search_similar_products(image, top_k=5):
-    extractor = ModifiedResNet34()
-    features = extractor(image)
+def search_similar_videos(image, top_k=5):
+    encoder = ImageEncoder()
+    features = encoder.encode(image)
     
     results = milvus_client.search(
         collection_name=COLLECTION_NAME,
@@ -174,113 +208,67 @@ def search_similar_products(image, top_k=5):
     for result in results[0]:
         metadata = result['entity']['metadata']
         search_results.append({
-            'Clip ID': result['id'],
             'Start Time': f"{metadata['start_time']:.1f}s",
-            'End Time': f"{metadata['end_offset_sec']:.1f}s",
+            'End Time': f"{metadata['end_time']:.1f}s",
             'Video URL': metadata['video_url'],
             'Similarity': f"{(1 - abs(result['distance'])) * 100:.2f}%"
         })
     
     return search_results
 
-def check_env_variables():
-    """Check if all required environment variables are set"""
-    required_vars = [
-        'TWELVELABS_API_KEY',
-        'MILVUS_DB_NAME',
-        'COLLECTION_NAME',
-        'MILVUS_HOST',
-        'MILVUS_PORT'
-    ]
-    
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
-    
-    if missing_vars:
-        st.error(f"Missing required environment variables: {', '.join(missing_vars)}")
-        st.stop()
-
 def main():
-
-    check_env_variables()
+    st.title("Video Search and Embedding System")
     
-
-    with st.sidebar:
-        st.image("https://via.placeholder.com/150?text=Fashion+AI", width=150)
-        st.title("Navigation")
-        selected = st.radio(
-            "",
-            ["🎥 Add Videos", "🤖 Chat Assistant"],
-            format_func=lambda x: x.split(" ")[1]
-        )
-      
-        with st.expander("ℹ️ System Info"):
-            st.info(f"""
-            - Database: {MILVUS_DB_NAME}
-            - Collection: {COLLECTION_NAME}
-            - Host: {MILVUS_HOST}
-            - Port: {MILVUS_PORT}
-            """)
+    tab1, tab2 = st.tabs(["Add Videos", "Search Videos"])
     
-    if selected == "🎥 Add Videos":
-        st.title("📚 Fashion Video Database")
-        st.subheader("Add new fashion videos to the database")
+    with tab1:
+        st.header("Add New Video")
+        video_url = st.text_input("Enter Video URL", 
+                                placeholder="Enter the URL of your video...")
         
-        with st.form("video_form", clear_on_submit=True):
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                video_url = st.text_input("🔗 Enter Google Drive Video URL", 
-                                        placeholder="https://drive.google.com/file/d/...")
-            with col2:
-                submitted = st.form_submit_button("➕ Add Video")
-            
-            if submitted and video_url:
+        if st.button("Process Video"):
+            with st.spinner("Generating embeddings..."):
                 embeddings, task_result, error = generate_embedding(video_url)
                 
                 if error:
-                    st.error(f"❌ Error: {error}")
+                    st.error(f"Error: {error}")
                 else:
-                    current_count = milvus_client.get_collection_stats(COLLECTION_NAME)['row_count']
-                    insert_result, inserted_count = insert_embeddings(
-                        milvus_client,
-                        COLLECTION_NAME,
-                        embeddings,
-                        start_id=current_count
-                    )
-                    st.success(f"✅ Successfully added {inserted_count} segments!")
-                    
-                    # Display progress
-                    st.metric("Total Videos", 
-                            milvus_client.get_collection_stats(COLLECTION_NAME)['row_count'])
+                    if embeddings:
+                        success, result = insert_embeddings(embeddings, video_url)
+                        if success:
+                            st.success(f"Successfully processed {result} segments from the video!")
+                            st.json({
+                                "Total segments": result,
+                                "Sample embedding": {
+                                    "Time range": f"{embeddings[0]['start_offset_sec']} - {embeddings[0]['end_offset_sec']} seconds",
+                                    "Vector preview": embeddings[0]['embedding'][:5]
+                                }
+                            })
+                        else:
+                            st.error(f"Error inserting embeddings: {result}")
+                    else:
+                        st.error("No embeddings generated from the video")
     
-    else:  # Chat Assistant page
-        st.title("👗 Fashion Product Assistant")
-        st.subheader("Upload a product image to find similar items")
+    with tab2:
+        st.header("Search Similar Videos")
+        uploaded_file = st.file_uploader(
+            "Upload an image to search",
+            type=['png', 'jpg', 'jpeg']
+        )
         
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            uploaded_file = st.file_uploader(
-                "Drop your image here",
-                type=['png', 'jpg', 'jpeg'],
-                help="Supported formats: PNG, JPG, JPEG"
-            )
+        if uploaded_file:
+            st.image(uploaded_file, caption="Uploaded Image", width=300)
             
-            if uploaded_file:
-                st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
-                if st.button("🔍 Find Similar Products", use_container_width=True):
-                    with st.spinner("🕵️‍♀️ Searching for similar products..."):
-                        results = search_similar_products(uploaded_file)
-                        
-                        with col2:
-                            st.markdown("### 🎯 Similar Products Found")
-                            for idx, result in enumerate(results, 1):
-                                with st.container():
-                                    st.markdown(f"""
-                                    #### Match #{idx} - {result['Similarity']} Similar
-                                    - 🎬 Time: {result['Start Time']} - {result['End Time']}
-                                    - 🔗 [Watch Video]({result['Video URL']})
-                                    """)
-                                    st.divider()
+            if st.button("Search Similar Videos"):
+                with st.spinner("Searching..."):
+                    results = search_similar_videos(uploaded_file)
+                    
+                    for idx, result in enumerate(results, 1):
+                        st.markdown(f"""
+                        ### Match #{idx} - {result['Similarity']} Similar
+                        - Time Range: {result['Start Time']} - {result['End Time']}
+                        - Video URL: {result['Video URL']}
+                        """)
 
 if __name__ == "__main__":
     main()
