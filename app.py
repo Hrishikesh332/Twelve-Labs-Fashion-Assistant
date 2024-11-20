@@ -47,7 +47,7 @@ milvus_client.create_index(
        "Index_type": "AUTOINDEX",
        "Metric_type": "COSINE",
        }
-
+)
 
 # # Initialize Milvus client
 # milvus_client = MilvusClient(
