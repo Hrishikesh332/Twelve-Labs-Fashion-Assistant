@@ -33,7 +33,7 @@ connections.connect(
    token=TOKEN
 )
 
-# Define fields based on insert_embeddings data structure
+# Define fields for schema
 fields = [
     FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=False),
     FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1024),
@@ -45,29 +45,35 @@ schema = CollectionSchema(
     enable_dynamic_field=True
 )
 
-# Check if collection exists and drop it
+# Check if collection exists
 if utility.has_collection(COLLECTION_NAME):
-    utility.drop_collection(COLLECTION_NAME)
-
-# Create collection
-collection = Collection(COLLECTION_NAME, schema)
-
-# Check if index exists before creating
-if not collection.has_index():
-    collection.create_index(
-        field_name="vector",
-        index_params={
-            "metric_type": "COSINE",
-            "index_type": "IVF_FLAT",
-            "params": {"nlist": 128}
-        }
-    )
+    # If exists, just load the existing collection
+    collection = Collection(COLLECTION_NAME)
+    print(f"Using existing collection: {COLLECTION_NAME}")
+else:
+    # If doesn't exist, create new collection
+    collection = Collection(COLLECTION_NAME, schema)
+    print(f"Created new collection: {COLLECTION_NAME}")
+    
+    # Create index for new collection
+    if not collection.has_index():
+        collection.create_index(
+            field_name="vector",
+            index_params={
+                "metric_type": "COSINE",
+                "index_type": "IVF_FLAT",
+                "params": {"nlist": 128}
+            }
+        )
+        print("Created index for the new collection")
 
 # Load collection for searching
 collection.load()
 
 # Set the milvus_client to the collection
 milvus_client = collection
+
+st.write(f"Connected to collection: {COLLECTION_NAME}")
 
 
 # # Initialize Milvus client
