@@ -73,7 +73,7 @@ collection.load()
 # Set the milvus_client to the collection
 milvus_client = collection
 
-st.write(f"Connected to collection: {COLLECTION_NAME}")
+# st.write(f"Connected to collection: {COLLECTION_NAME}")
 
 
 # # Initialize Milvus client
@@ -110,8 +110,8 @@ st.write(f"Connected to collection: {COLLECTION_NAME}")
 # # Load collection
 # milvus_client.load_collection(collection_name)
 
-st.write(f"Collection '{COLLECTION_NAME}' created successfully")
-st.write("Hello")
+# st.write(f"Collection '{COLLECTION_NAME}' created successfully")
+# st.write("Hello")
 
 # Clean, professional CSS styling
 st.markdown("""
