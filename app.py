@@ -46,7 +46,6 @@ if milvus_client.has_collection(collection_name):
 milvus_client.create_collection(
     collection_name=collection_name,
     dimension=1024,
-    primary_field_name="id",
     vector_field_name="vector",
     id_type="int64",
     auto_id=False,
