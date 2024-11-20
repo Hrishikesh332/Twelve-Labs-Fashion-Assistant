@@ -28,7 +28,6 @@ connections.connect(
    token=TOKEN
 )
 
-st.write(TWELVELABS_API_KEY)
 
 # Initialize Milvus client
 milvus_client = MilvusClient(
@@ -47,8 +46,6 @@ milvus_client.create_collection(
     collection_name=collection_name,
     dimension=1024,
     vector_field_name="vector",
-    id_type="int64",
-    auto_id=False,
     enable_dynamic_field=True
 )
 
