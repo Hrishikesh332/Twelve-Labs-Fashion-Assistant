@@ -42,10 +42,48 @@ st.write(TWELVELABS_API_KEY)
 
 collection_name = COLLECTION_NAME
 
-# Define the schema fields
+# # Define the schema fields
+# fields = [
+#     FieldSchema("pk", DataType.INT64, is_primary=True, auto_id=True),
+#     FieldSchema("vector", DataType.FLOAT_VECTOR, dim=1024),  # Keeping your 1024 dimension
+# ]
+
+# # Create the schema with dynamic fields enabled
+# schema = CollectionSchema(
+#     fields,
+#     enable_dynamic_field=True,
+# )
+
+# # # Check if collection exists and drop if necessary
+# # if Collection.exists(collection_name):
+# #     Collection(collection_name).drop()
+
+# # Create the collection with the new schema
+# milvus_client = Collection(collection_name, schema)
+
+# # Create an index on the vector field
+# milvus_client.create_index(
+#     field_name="vector",
+#     index_params={
+#         "index_type": "AUTOINDEX",
+#         "metric_type": "COSINE",
+#     }
+# )
+
+
+# if not milvus_client.has_index():
+#     milvus_client.create_index(
+#         field_name="vector",
+#         index_params={
+#             "index_type": "IVF_FLAT",
+#             "metric_type": "COSINE",
+#             "params": {"nlist": 1024}
+#         }
+#     )
+
 fields = [
     FieldSchema("pk", DataType.INT64, is_primary=True, auto_id=True),
-    FieldSchema("vector", DataType.FLOAT_VECTOR, dim=1024),  # Keeping your 1024 dimension
+    FieldSchema("vector", DataType.FLOAT_VECTOR, dim=1024),
 ]
 
 # Create the schema with dynamic fields enabled
@@ -54,34 +92,18 @@ schema = CollectionSchema(
     enable_dynamic_field=True,
 )
 
-# # Check if collection exists and drop if necessary
-# if Collection.exists(collection_name):
-#     Collection(collection_name).drop()
-
-# Create the collection with the new schema
+# Create the collection with the schema
 milvus_client = Collection(collection_name, schema)
 
 # Create an index on the vector field
-milvus_client.create_index(
-    field_name="vector",
-    index_params={
-        "index_type": "AUTOINDEX",
-        "metric_type": "COSINE",
-    }
-)
+index_params = {
+    "metric_type": "COSINE",
+    "index_type": "AUTOINDEX",
+    "params": {}
+}
 
-
-if not milvus_client.has_index():
-    milvus_client.create_index(
-        field_name="vector",
-        index_params={
-            "index_type": "IVF_FLAT",
-            "metric_type": "COSINE",
-            "params": {"nlist": 1024}
-        }
-    )
-
-
+milvus_client.create_index("vector", index_params)
+milvus_client.load()
 
 st.write(f"Collection '{collection_name}' created successfully")
 st.write("Hello")
@@ -219,39 +241,29 @@ def insert_embeddings(embeddings, video_url):
     """
     Insert embeddings into Milvus collection
     """
-    data = []
-    metadata = []
-    vectors = []
-    
-    for emb in embeddings:
-        vectors.append(emb['embedding'])
-        metadata.append({
-            "scope": emb['embedding_scope'],
-            "start_time": emb['start_offset_sec'],
-            "end_time": emb['end_offset_sec'],
-            "video_url": video_url
-        })
-
     try:
-        # Prepare the data as a dictionary with field names
-        insert_data = [
-            vectors,  # vector field
-            metadata  # metadata field (dynamic field)
-        ]
+        entities = []
         
-        # Insert using the collection object directly
-        mr = milvus_client.insert([
-            ("vector", vectors),
-            ("metadata", metadata)
-        ])
+        for emb in embeddings:
+            entities.append({
+                "vector": emb['embedding'],
+                "metadata": {
+                    "scope": emb['embedding_scope'],
+                    "start_time": emb['start_offset_sec'],
+                    "end_time": emb['end_offset_sec'],
+                    "video_url": video_url
+                }
+            })
+            
+        # Insert data into collection
+        mr = milvus_client.insert(entities)
         
-        # Load the collection to make the new data searchable
+        # Load and flush to ensure data is searchable
         milvus_client.load()
-        
-        # Flush to ensure data is persisted
         milvus_client.flush()
         
-        return True, len(vectors)
+        return True, len(entities)
+        
     except Exception as e:
         print(f"Insert error details: {str(e)}")
         return False, str(e)
@@ -260,20 +272,18 @@ def search_similar_videos(image, top_k=5):
     encoder = ImageEncoder()
     features = encoder.encode(image)
     
-    search_params = {
-        "metric_type": "COSINE",
-        "params": {"nprobe": 10}
-    }
-    
     try:
         # Make sure collection is loaded
         milvus_client.load()
         
-        # Perform search using the collection object
+        # Perform search
         results = milvus_client.search(
             data=[features],
             anns_field="vector",
-            param=search_params,
+            param={
+                "metric_type": "COSINE",
+                "params": {"nprobe": 10}
+            },
             limit=top_k,
             output_fields=["metadata"]
         )
@@ -294,7 +304,6 @@ def search_similar_videos(image, top_k=5):
     except Exception as e:
         print(f"Search error details: {str(e)}")
         return []
-
 def main():
     st.title("Video Search and Embedding System")
     
