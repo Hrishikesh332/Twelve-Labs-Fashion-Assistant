@@ -115,58 +115,144 @@ st.write("Hello")
 
 st.markdown("""
     <style>
+        /* Main container styling */
         .stApp {
-            background-color: #f8f9fa;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e7eb 100%);
         }
-        .main {
-            padding: 2rem;
-        }
-        .st-emotion-cache-16idsys {
-            padding-top: 2rem;
-        }
-        .st-emotion-cache-1r6slb0 {
-            background-color: #ffffff;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .css-1d391kg {
+        
+        /* Header styling */
+        h1 {
+            color: #1e3a8a;
+            font-size: 2.5rem !important;
+            font-weight: 700 !important;
+            margin-bottom: 2rem !important;
+            text-align: center;
             padding: 1rem;
+            background: rgba(255, 255, 255, 0.9);
             border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        .stButton>button {
-            width: 100%;
-            border-radius: 20px;
-            background-color: #ff4b6e;
-            color: white;
+        
+        /* Tab styling */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: #ffffff;
+            padding: 0.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            background-color: transparent;
+            border-radius: 5px;
+            color: #4a5568;
             font-weight: 600;
         }
-        .stButton>button:hover {
-            background-color: #ff3356;
+        
+        .stTabs [aria-selected="true"] {
+            background-color: #3b82f6 !important;
+            color: white !important;
+        }
+        
+        /* Input field styling */
+        .stTextInput input {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 0.75rem;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .stTextInput input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+        
+        /* Button styling */
+        .stButton > button {
+            width: 100%;
+            height: 48px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             color: white;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
         }
-        .upload-box {
-            border: 2px dashed #ccc;
-            padding: 20px;
-            text-align: center;
-            border-radius: 10px;
-            margin: 20px 0;
+        
+        .stButton > button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(37, 99, 235, 0.3);
         }
-        .results-container {
+        
+        /* File uploader styling */
+        .uploadedFile {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Results container styling */
+        .stExpander {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 1rem;
+        }
+        
+        /* Sidebar styling */
+        .css-1d391kg {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-right: 1px solid #e2e8f0;
+        }
+        
+        /* Progress bar styling */
+        .stProgress > div > div {
+            background-color: #3b82f6;
+        }
+        
+        /* Card-like containers */
+        .content-container {
             background: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin-top: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
         }
-        .sidebar-info {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #f0f2f6;
-            border-radius: 5px;
+        
+        /* Alert styling */
+        .stAlert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+        
+        /* Success message styling */
+        .success-message {
+            background-color: #dcfce7;
+            color: #166534;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #22c55e;
+            margin: 1rem 0;
+        }
+        
+        /* Error message styling */
+        .error-message {
+            background-color: #fee2e2;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #ef4444;
+            margin: 1rem 0;
         }
     </style>
 """, unsafe_allow_html=True)
+
 
 
 def generate_embedding(video_url):
@@ -292,78 +378,119 @@ def search_similar_videos(image, top_k=5):
     
     return search_results
 def main():
-    st.title("Video Search and Embedding System")
+    st.title("🎥 Video Search and Embedding System")
     
-    # Add collection info in sidebar
-    try:
-        stats = milvus_client.num_entities
-        st.sidebar.success(f"Connected to collection: {COLLECTION_NAME}")
-        st.sidebar.info(f"Number of video segments: {stats}")
-    except Exception as e:
-        st.sidebar.error(f"Collection status error: {str(e)}")
+    # Sidebar with system status
+    with st.sidebar:
+        st.markdown("### System Status")
+        try:
+            stats = milvus_client.num_entities
+            st.success(f"✅ Connected to: {COLLECTION_NAME}")
+            st.info(f"📊 Video Segments: {stats:,}")
+        except Exception as e:
+            st.error(f"❌ Connection Error: {str(e)}")
     
-    tab1, tab2 = st.tabs(["Add Videos", "Search Videos"])
+    # Main content tabs
+    tab1, tab2 = st.tabs(["📥 Add Videos", "🔍 Search Videos"])
     
     with tab1:
-        st.header("Add New Video")
-        video_url = st.text_input("Enter Video URL", 
-                                placeholder="Enter the URL of your video...")
+        st.markdown("""
+            <div class="content-container">
+                <h3 style="color: #1e3a8a; margin-bottom: 1.5rem;">Add New Video</h3>
+            </div>
+        """, unsafe_allow_html=True)
         
-        if st.button("Process Video"):
-            with st.spinner("Generating embeddings..."):
-                embeddings, task_result, error = generate_embedding(video_url)
-                
-                if error:
-                    st.error(f"Error: {error}")
-                else:
-                    if embeddings:
-                        with st.spinner("Inserting embeddings into database..."):
-                            success, result = insert_embeddings(embeddings, video_url)
-                            if success:
-                                st.success(f"Successfully processed {result} segments from the video!")
-                                st.json({
-                                    "Total segments": result,
-                                    "Sample embedding": {
-                                        "Time range": f"{embeddings[0]['start_offset_sec']} - {embeddings[0]['end_offset_sec']} seconds",
-                                        "Vector preview": embeddings[0]['embedding'][:5]
-                                    }
-                                })
-                            else:
-                                st.error(f"Error inserting embeddings: {result}")
-                    else:
-                        st.error("No embeddings generated from the video")
-    
-    with tab2:
-        st.header("Search Similar Videos")
-        uploaded_file = st.file_uploader(
-            "Upload an image to search",
-            type=['png', 'jpg', 'jpeg']
+        video_url = st.text_input(
+            "Video URL",
+            placeholder="https://example.com/video.mp4",
+            help="Enter the complete URL of your video file"
         )
         
-        if uploaded_file:
-            st.image(uploaded_file, caption="Uploaded Image", width=300)
-            
-            top_k = st.slider("Number of results to show", min_value=1, max_value=20, value=5)
-            
-            if st.button("Search Similar Videos"):
-                with st.spinner("Searching for similar videos..."):
-                    results = search_similar_videos(uploaded_file, top_k=top_k)
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("🚀 Process Video", use_container_width=True):
+                with st.spinner("🔄 Generating video embeddings..."):
+                    embeddings, task_result, error = generate_embedding(video_url)
                     
-                    if not results:
-                        st.warning("No similar videos found.")
-                    else:
-                        for idx, result in enumerate(results, 1):
-                            with st.expander(f"Match #{idx} - {result['Similarity']} Similar"):
+                    if error:
+                        st.markdown(f"""
+                            <div class="error-message">
+                                ❌ Error: {error}
+                            </div>
+                        """, unsafe_allow_html=True)
+                    elif embeddings:
+                        with st.spinner("💾 Storing embeddings..."):
+                            success, result = insert_embeddings(embeddings, video_url)
+                            if success:
                                 st.markdown(f"""
-                                #### Time Range
-                                {result['Start Time']} - {result['End Time']}
+                                    <div class="success-message">
+                                        ✅ Successfully processed {result} segments!
+                                    </div>
+                                """, unsafe_allow_html=True)
                                 
-                                #### Video URL
-                                {result['Video URL']}
-                                """)
-                                
-                                if st.button(f"Copy URL #{idx}", key=f"copy_{idx}"):
-                                    st.code(result['Video URL'])
+                                with st.expander("📊 Processing Details"):
+                                    st.json({
+                                        "Total segments": result,
+                                        "Sample embedding": {
+                                            "Time range": f"{embeddings[0]['start_offset_sec']} - {embeddings[0]['end_offset_sec']} seconds",
+                                            "Vector preview": embeddings[0]['embedding'][:5]
+                                        }
+                                    })
+                            else:
+                                st.error(f"❌ Insertion Error: {result}")
+                    else:
+                        st.error("❌ No embeddings generated")
+    
+    with tab2:
+        st.markdown("""
+            <div class="content-container">
+                <h3 style="color: #1e3a8a; margin-bottom: 1.5rem;">Search Similar Videos</h3>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            uploaded_file = st.file_uploader(
+                "Upload Search Image",
+                type=['png', 'jpg', 'jpeg'],
+                help="Select an image to find similar video segments"
+            )
+            
+            if uploaded_file:
+                st.image(uploaded_file, caption="Query Image", use_column_width=True)
+        
+        with col2:
+            if uploaded_file:
+                st.markdown("### Search Configuration")
+                top_k = st.slider(
+                    "Number of results",
+                    min_value=1,
+                    max_value=20,
+                    value=5,
+                    help="Select how many similar videos to retrieve"
+                )
+                
+                if st.button("🔍 Search Similar Videos", use_container_width=True):
+                    with st.spinner("🔄 Searching for matches..."):
+                        results = search_similar_videos(uploaded_file, top_k=top_k)
+                        
+                        if not results:
+                            st.warning("🔍 No similar videos found")
+                        else:
+                            st.markdown("### Search Results")
+                            for idx, result in enumerate(results, 1):
+                                with st.expander(f"🎥 Match #{idx} - {result['Similarity']} Similar"):
+                                    st.markdown(f"""
+                                        #### ⏱️ Time Range
+                                        {result['Start Time']} - {result['End Time']}
+                                        
+                                        #### 🔗 Video URL
+                                        {result['Video URL']}
+                                    """)
+                                    
+                                    if st.button("📋 Copy URL", key=f"copy_{idx}"):
+                                        st.code(result['Video URL'])
 
 if __name__ == "__main__":
     main()
