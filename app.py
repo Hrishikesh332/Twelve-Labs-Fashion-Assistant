@@ -9,15 +9,8 @@ from urllib.parse import urlparse
 import uuid
 from dotenv import load_dotenv
 import os
+from pymilvus import MilvusClient
 from pymilvus import connections
-from pymilvus import (
-    connections,
-    FieldSchema, 
-    DataType,
-    CollectionSchema, 
-    Collection,
-    utility
-)
 
 load_dotenv()
 
@@ -37,54 +30,45 @@ connections.connect(
 
 st.write(TWELVELABS_API_KEY)
 
-# Define collection name
-collection_name = COLLECTION_NAME
-
-# Drop existing collection if it exists
-if utility.has_collection(collection_name):
-    utility.drop_collection(collection_name)
-
-# Create collection schema
-dim = 1024  # vector dimension
-fields = [
-    FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-    FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim),
-    FieldSchema(name="metadata", dtype=DataType.JSON)
-]
-
-schema = CollectionSchema(
-    fields=fields,
-    description="Video search collection"
+# Initialize Milvus client
+milvus_client = MilvusClient(
+    uri=URL,
+    token=TOKEN
 )
 
-# Create collection
-collection = Collection(
-    name=collection_name,
-    schema=schema,
-    using='default'
+collection_name = COLLECTION_NAME
+
+# Check if collection exists and drop if necessary
+if milvus_client.has_collection(collection_name):
+    milvus_client.drop_collection(collection_name)
+
+# Create collection with proper schema
+milvus_client.create_collection(
+    collection_name=collection_name,
+    dimension=1024,
+    primary_field_name="id",
+    vector_field_name="vector",
+    id_type="int64",
+    auto_id=False,
+    enable_dynamic_field=True
 )
 
 # Create index
-index_params = {
-    "metric_type": "COSINE",
-    "index_type": "IVF_FLAT",
-    "params": {"nlist": 128}
-}
-
-collection.create_index(
-    field_name="vector", 
-    index_params=index_params
+milvus_client.create_index(
+    collection_name=collection_name,
+    field_name="vector",
+    index_params={
+        "metric_type": "COSINE",
+        "index_type": "IVF_FLAT",
+        "params": {"nlist": 128}
+    }
 )
 
 # Load collection
-collection.load()
-
-# Update the milvus_client reference to use our collection
-milvus_client = collection
+milvus_client.load_collection(collection_name)
 
 st.write(f"Collection '{collection_name}' created successfully")
 st.write("Hello")
-
 
 st.markdown("""
     <style>
