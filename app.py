@@ -40,7 +40,7 @@ connections.connect(
 
 st.write(TWELVELABS_API_KEY)
 
-collection_name = "twelvelabs_collection_dress6"
+collection_name = COLLECTION_NAME
 
 # Define the schema fields
 fields = [
