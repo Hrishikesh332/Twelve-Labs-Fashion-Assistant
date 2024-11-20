@@ -11,7 +11,13 @@ import uuid
 from dotenv import load_dotenv
 import os
 from pymilvus import connections
-
+from pymilvus import (
+    connections,
+    FieldSchema, 
+    DataType,
+    CollectionSchema, 
+    Collection
+)
 
 load_dotenv()
 
@@ -23,21 +29,46 @@ MILVUS_DB_NAME = os.getenv('MILVUS_DB_NAME')
 COLLECTION_NAME = os.getenv('COLLECTION_NAME')
 MILVUS_HOST = os.getenv('MILVUS_HOST')
 MILVUS_PORT = os.getenv('MILVUS_PORT')
+URL = os.getenv('URL')
+TOKEN = os.getenv('TOKEN')
+
+ENDPOINT=URL
+connections.connect(
+   uri=ENDPOINT,
+   token=TOKEN)
 
 
-milvus_client = MilvusClient("milvus_twelvelabs_demo5.db")
+st.write(TWELVELABS_API_KEY)
 
 collection_name = "twelvelabs_collection_dress5"
 
-if milvus_client.has_collection(collection_name=collection_name):
-    milvus_client.drop_collection(collection_name=collection_name)
+# Define the schema fields
+fields = [
+    FieldSchema("pk", DataType.INT64, is_primary=True, auto_id=True),
+    FieldSchema("vector", DataType.FLOAT_VECTOR, dim=1024),  # Keeping your 1024 dimension
+]
 
-
-milvus_client.create_collection(
-    collection_name=collection_name,
-    dimension=1024
+# Create the schema with dynamic fields enabled
+schema = CollectionSchema(
+    fields,
+    enable_dynamic_field=True,
 )
 
+# # Check if collection exists and drop if necessary
+# if Collection.exists(collection_name):
+#     Collection(collection_name).drop()
+
+# Create the collection with the new schema
+milvus_client = Collection(collection_name, schema)
+
+# Create an index on the vector field
+milvus_client.create_index(
+    field_name="vector",
+    index_params={
+        "index_type": "AUTOINDEX",
+        "metric_type": "COSINE",
+    }
+)
 st.write(f"Collection '{collection_name}' created successfully")
 st.write("Hello")
 
@@ -100,7 +131,7 @@ st.markdown("""
 
 def generate_embedding(video_url):
     try:
-        twelvelabs_client = TwelveLabs(api_key=TWELVELABS_API_KEY)
+        twelvelabs_client = TwelveLabs(api_key="tlk_32YBVAW1GVJHV42ASQ5KB3WEJYW1")
         print(f"Processing video URL: {video_url}")
      
         task = twelvelabs_client.embed.task.create(
@@ -108,21 +139,20 @@ def generate_embedding(video_url):
             video_url=video_url
         )
         print(f"Created task: id={task.id} engine_name={task.engine_name} status={task.status}")
-  
     
         status = task.wait_for_done(
             sleep_interval=2,
             callback=lambda t: print(f"Status={t.status}")
         )
-        print(task)
         print(f"Embedding done: {status}")
 
-
-        task = task.retrieve()
+        # Get the task result explicitly using the client
+        task_result = twelvelabs_client.embed.task.retrieve(task.id)
+        print(task_result)
         
-        if task.video_embedding is not None and task.video_embedding.segments is not None:
+        if hasattr(task_result, 'video_embedding') and task_result.video_embedding is not None and task_result.video_embedding.segments is not None:
             embeddings = []
-            for segment in task.video_embedding.segments:
+            for segment in task_result.video_embedding.segments:
                 embeddings.append({
                     'embedding': segment.embeddings_float,
                     'start_offset_sec': segment.start_offset_sec,
@@ -130,13 +160,15 @@ def generate_embedding(video_url):
                     'embedding_scope': segment.embedding_scope,
                     'video_url': video_url
                 })
-            return embeddings, task, None
+            return embeddings, task_result, None
         else:
             return None, None, "No embeddings found in task result"
             
     except Exception as e:
         print(f"Error in generate_embedding: {str(e)}")
         return None, None, str(e)
+            
+
 
 def insert_embeddings(embeddings, video_url):
     data = []
