@@ -234,7 +234,6 @@ class ImageEncoder:
         
         return features.numpy()
 
-
 def insert_embeddings(embeddings, video_url):
     data = []
     timestamp = int(time.time())
@@ -252,36 +251,38 @@ def insert_embeddings(embeddings, video_url):
         })
 
     try:
-        insert_result = milvus_client.insert(
-            collection_name=COLLECTION_NAME,
-            data=data
-        )
+        # Modified insert call for Collection object
+        insert_result = milvus_client.insert(data)
+        # Force flush to ensure data is persisted
+        milvus_client.flush()
         return True, len(data)
     except Exception as e:
         return False, str(e)
-
 
 def search_similar_videos(image, top_k=5):
     encoder = ImageEncoder()
     features = encoder.encode(image)
     
+    # Modified search call for Collection object
     results = milvus_client.search(
-        collection_name=COLLECTION_NAME,
         data=[features],
-        output_fields=["metadata"],
-        search_params={"metric_type": "COSINE", "params": {"nprobe": 10}},
-        limit=top_k
+        anns_field="vector",
+        param={"metric_type": "COSINE", "params": {"nprobe": 10}},
+        limit=top_k,
+        output_fields=["metadata"]
     )
     
     search_results = []
-    for result in results[0]:
-        metadata = result['entity']['metadata']
-        search_results.append({
-            'Start Time': f"{metadata['start_time']:.1f}s",
-            'End Time': f"{metadata['end_time']:.1f}s",
-            'Video URL': metadata['video_url'],
-            'Similarity': f"{(1 - abs(result['distance'])) * 100:.2f}%"
-        })
+    for hits in results:
+        for hit in hits:
+            metadata = hit.entity.get('metadata')
+            if metadata:
+                search_results.append({
+                    'Start Time': f"{metadata['start_time']:.1f}s",
+                    'End Time': f"{metadata['end_time']:.1f}s",
+                    'Video URL': metadata['video_url'],
+                    'Similarity': f"{(1 - float(hit.distance)) * 100:.2f}%"
+                })
     
     return search_results
 def main():
