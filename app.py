@@ -13,7 +13,9 @@ from pymilvus import MilvusClient
 from pymilvus import connections
 from pymilvus import (
    FieldSchema, DataType, 
-   CollectionSchema, Collection)
+   CollectionSchema, Collection,
+   utility
+)
 
 load_dotenv()
 
@@ -34,32 +36,39 @@ connections.connect(
 # Define fields based on insert_embeddings data structure
 fields = [
     FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=False),
-    FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1024),  # dimension matches ImageEncoder output
+    FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1024),
 ]
 
 # Create schema with dynamic fields for metadata
 schema = CollectionSchema(
     fields=fields,
-    enable_dynamic_field=True  # Enable dynamic fields for metadata
+    enable_dynamic_field=True
 )
+
+# Check if collection exists and drop it
+if utility.has_collection(COLLECTION_NAME):
+    utility.drop_collection(COLLECTION_NAME)
 
 # Create collection
 collection = Collection(COLLECTION_NAME, schema)
 
-# Create index for vector searches
-collection.create_index(
-    field_name="vector",
-    index_params={
-        "metric_type": "COSINE",
-        "index_type": "AUTOINDEX"
-    }
-)
+# Check if index exists before creating
+if not collection.has_index():
+    collection.create_index(
+        field_name="vector",
+        index_params={
+            "metric_type": "COSINE",
+            "index_type": "IVF_FLAT",
+            "params": {"nlist": 128}
+        }
+    )
 
 # Load collection for searching
 collection.load()
 
-# Set the milvus_client to the collection for the rest of the functions
+# Set the milvus_client to the collection
 milvus_client = collection
+
 
 # # Initialize Milvus client
 # milvus_client = MilvusClient(
