@@ -42,10 +42,10 @@ milvus_client = Collection(COLLECTION_NAME, schema)
 
 ## 3. Index the collection.
 milvus_client.create_index(
-   field_name=”vector”,
+   field_name="vector",
    index_params={
-       “Index_type”: “AUTOINDEX”,
-       “Metric_type”: “COSINE”,
+       "Index_type": "AUTOINDEX",
+       "Metric_type": "COSINE",
        }
 
 
