@@ -69,6 +69,20 @@ milvus_client.create_index(
         "metric_type": "COSINE",
     }
 )
+
+
+if not milvus_client.has_index():
+    milvus_client.create_index(
+        field_name="vector",
+        index_params={
+            "index_type": "IVF_FLAT",
+            "metric_type": "COSINE",
+            "params": {"nlist": 1024}
+        }
+    )
+
+
+
 st.write(f"Collection '{collection_name}' created successfully")
 st.write("Hello")
 
@@ -170,30 +184,6 @@ def generate_embedding(video_url):
             
 
 
-def insert_embeddings(embeddings, video_url):
-    data = []
-    timestamp = int(time.time())
-    
-    for i, emb in enumerate(embeddings):
-        data.append({
-            "id": int(f"{timestamp}{i:03d}"),  
-            "vector": emb['embedding'],
-            "metadata": {
-                "scope": emb['embedding_scope'],
-                "start_time": emb['start_offset_sec'],
-                "end_time": emb['end_offset_sec'],
-                "video_url": video_url
-            }
-        })
-
-    try:
-        insert_result = milvus_client.insert(
-            collection_name=COLLECTION_NAME,
-            data=data
-        )
-        return True, len(data)
-    except Exception as e:
-        return False, str(e)
 
 class ImageEncoder:
     def __init__(self):
@@ -224,32 +214,97 @@ class ImageEncoder:
         
         return features.numpy()
 
+
+def insert_embeddings(embeddings, video_url):
+    """
+    Insert embeddings into Milvus collection
+    """
+    data = []
+    metadata = []
+    vectors = []
+    
+    for emb in embeddings:
+        vectors.append(emb['embedding'])
+        metadata.append({
+            "scope": emb['embedding_scope'],
+            "start_time": emb['start_offset_sec'],
+            "end_time": emb['end_offset_sec'],
+            "video_url": video_url
+        })
+
+    try:
+        # Prepare the data as a dictionary with field names
+        insert_data = [
+            vectors,  # vector field
+            metadata  # metadata field (dynamic field)
+        ]
+        
+        # Insert using the collection object directly
+        mr = milvus_client.insert([
+            ("vector", vectors),
+            ("metadata", metadata)
+        ])
+        
+        # Load the collection to make the new data searchable
+        milvus_client.load()
+        
+        # Flush to ensure data is persisted
+        milvus_client.flush()
+        
+        return True, len(vectors)
+    except Exception as e:
+        print(f"Insert error details: {str(e)}")
+        return False, str(e)
+
 def search_similar_videos(image, top_k=5):
     encoder = ImageEncoder()
     features = encoder.encode(image)
     
-    results = milvus_client.search(
-        collection_name=COLLECTION_NAME,
-        data=[features],
-        output_fields=["metadata"],
-        search_params={"metric_type": "COSINE", "params": {"nprobe": 10}},
-        limit=top_k
-    )
+    search_params = {
+        "metric_type": "COSINE",
+        "params": {"nprobe": 10}
+    }
     
-    search_results = []
-    for result in results[0]:
-        metadata = result['entity']['metadata']
-        search_results.append({
-            'Start Time': f"{metadata['start_time']:.1f}s",
-            'End Time': f"{metadata['end_time']:.1f}s",
-            'Video URL': metadata['video_url'],
-            'Similarity': f"{(1 - abs(result['distance'])) * 100:.2f}%"
-        })
-    
-    return search_results
+    try:
+        # Make sure collection is loaded
+        milvus_client.load()
+        
+        # Perform search using the collection object
+        results = milvus_client.search(
+            data=[features],
+            anns_field="vector",
+            param=search_params,
+            limit=top_k,
+            output_fields=["metadata"]
+        )
+        
+        search_results = []
+        for hits in results:
+            for hit in hits:
+                metadata = hit.entity.get('metadata')
+                if metadata:
+                    search_results.append({
+                        'Start Time': f"{metadata['start_time']:.1f}s",
+                        'End Time': f"{metadata['end_time']:.1f}s",
+                        'Video URL': metadata['video_url'],
+                        'Similarity': f"{(1 - float(hit.distance)) * 100:.2f}%"
+                    })
+        
+        return search_results
+    except Exception as e:
+        print(f"Search error details: {str(e)}")
+        return []
 
 def main():
     st.title("Video Search and Embedding System")
+    
+    # Add collection info in sidebar
+    try:
+        stats = milvus_client.num_entities
+        st.sidebar.success(f"Connected to collection: {collection_name}")
+        st.sidebar.info(f"Number of video segments: {stats}")
+    except Exception as e:
+        st.sidebar.error(f"Collection status error: {str(e)}")
     
     tab1, tab2 = st.tabs(["Add Videos", "Search Videos"])
     
@@ -266,18 +321,19 @@ def main():
                     st.error(f"Error: {error}")
                 else:
                     if embeddings:
-                        success, result = insert_embeddings(embeddings, video_url)
-                        if success:
-                            st.success(f"Successfully processed {result} segments from the video!")
-                            st.json({
-                                "Total segments": result,
-                                "Sample embedding": {
-                                    "Time range": f"{embeddings[0]['start_offset_sec']} - {embeddings[0]['end_offset_sec']} seconds",
-                                    "Vector preview": embeddings[0]['embedding'][:5]
-                                }
-                            })
-                        else:
-                            st.error(f"Error inserting embeddings: {result}")
+                        with st.spinner("Inserting embeddings into database..."):
+                            success, result = insert_embeddings(embeddings, video_url)
+                            if success:
+                                st.success(f"Successfully processed {result} segments from the video!")
+                                st.json({
+                                    "Total segments": result,
+                                    "Sample embedding": {
+                                        "Time range": f"{embeddings[0]['start_offset_sec']} - {embeddings[0]['end_offset_sec']} seconds",
+                                        "Vector preview": embeddings[0]['embedding'][:5]
+                                    }
+                                })
+                            else:
+                                st.error(f"Error inserting embeddings: {result}")
                     else:
                         st.error("No embeddings generated from the video")
     
@@ -291,16 +347,27 @@ def main():
         if uploaded_file:
             st.image(uploaded_file, caption="Uploaded Image", width=300)
             
+            top_k = st.slider("Number of results to show", min_value=1, max_value=20, value=5)
+            
             if st.button("Search Similar Videos"):
-                with st.spinner("Searching..."):
-                    results = search_similar_videos(uploaded_file)
+                with st.spinner("Searching for similar videos..."):
+                    results = search_similar_videos(uploaded_file, top_k=top_k)
                     
-                    for idx, result in enumerate(results, 1):
-                        st.markdown(f"""
-                        ### Match #{idx} - {result['Similarity']} Similar
-                        - Time Range: {result['Start Time']} - {result['End Time']}
-                        - Video URL: {result['Video URL']}
-                        """)
+                    if not results:
+                        st.warning("No similar videos found.")
+                    else:
+                        for idx, result in enumerate(results, 1):
+                            with st.expander(f"Match #{idx} - {result['Similarity']} Similar"):
+                                st.markdown(f"""
+                                #### Time Range
+                                {result['Start Time']} - {result['End Time']}
+                                
+                                #### Video URL
+                                {result['Video URL']}
+                                """)
+                                
+                                if st.button(f"Copy URL #{idx}", key=f"copy_{idx}"):
+                                    st.code(result['Video URL'])
 
 if __name__ == "__main__":
     main()
