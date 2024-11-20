@@ -113,13 +113,6 @@ st.write(f"Connected to collection: {COLLECTION_NAME}")
 st.write(f"Collection '{COLLECTION_NAME}' created successfully")
 st.write("Hello")
 
-st.set_page_config(
-    page_title="Video Search System",
-    page_icon="🎥",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
 # Clean, professional CSS styling
 st.markdown("""
     <style>
