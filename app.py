@@ -290,7 +290,7 @@ def main():
     # Add collection info in sidebar
     try:
         stats = milvus_client.num_entities
-        st.sidebar.success(f"Connected to collection: {collection_name}")
+        st.sidebar.success(f"Connected to collection: {COLLECTION_NAME}")
         st.sidebar.info(f"Number of video segments: {stats}")
     except Exception as e:
         st.sidebar.error(f"Collection status error: {str(e)}")
