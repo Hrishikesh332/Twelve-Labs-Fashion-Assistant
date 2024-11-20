@@ -366,6 +366,60 @@ def search_similar_videos(image, top_k=5):
     
     return search_results
 
+
+def format_time_for_url(seconds):
+    return f"{int(float(seconds))}"
+
+def get_video_id_from_url(url):
+
+    parsed_url = urlparse(url)
+
+    # Vimeo
+    if 'vimeo.com' in url:
+        return parsed_url.path[1:], 'vimeo'
+    
+    # Direct video URL
+    elif url.endswith(('.mp4', '.webm', '.ogg')):
+        return url, 'direct'
+    
+    return None, None
+
+def create_video_embed(video_url, start_time, end_time):
+    video_id, platform = get_video_id_from_url(video_url)
+    start_seconds = format_time_for_url(start_time)
+    
+    if platform == 'vimeo':
+        return f"""
+            <iframe 
+                width="100%" 
+                height="315" 
+                src="https://player.vimeo.com/video/{video_id}#t={start_seconds}s"
+                frameborder="0" 
+                allow="autoplay; fullscreen; picture-in-picture" 
+                allowfullscreen>
+            </iframe>
+        """
+    elif platform == 'direct':
+        return f"""
+            <video 
+                width="100%" 
+                height="315" 
+                controls 
+                autoplay
+                id="video-player">
+                <source src="{video_url}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <script>
+                document.getElementById('video-player').addEventListener('loadedmetadata', function() {{
+                    this.currentTime = {start_time};
+                }});
+            </script>
+        """
+    else:
+        return f"<p>Unable to embed video from URL: {video_url}</p>"
+
+        
 def main():
     st.title("Video Search and Embedding System")
     
@@ -457,17 +511,37 @@ def main():
                             else:
                                 st.subheader("Results")
                                 for idx, result in enumerate(results, 1):
-                                    with st.expander(f"Match #{idx} - Similarity: {result['Similarity']}"):
-                                        st.markdown(f"""
-                                            **Time Range**  
-                                            {result['Start Time']} - {result['End Time']}
-                                            
-                                            **Video URL**  
-                                            {result['Video URL']}
-                                        """)
+                                    with st.expander(f"Match #{idx} - Similarity: {result['Similarity']}", expanded=(idx==1)):
+                                        # Extract start and end times
+                                        start_time = float(result['Start Time'].replace('s', ''))
+                                        end_time = float(result['End Time'].replace('s', ''))
                                         
-                                        if st.button("Copy URL", key=f"copy_{idx}"):
-                                            st.code(result['Video URL'])
+                                        # Create two columns for video and details
+                                        video_col, details_col = st.columns([2, 1])
+                                        
+                                        with video_col:
+                                            st.markdown("#### Video Segment")
+                                            # Embed video starting at the specific time
+                                            video_embed = create_video_embed(
+                                                result['Video URL'],
+                                                start_time,
+                                                end_time
+                                            )
+                                            st.markdown(video_embed, unsafe_allow_html=True)
+                                        
+                                        with details_col:
+                                            st.markdown("#### Details")
+                                            st.markdown(f"""
+                                                🕒 **Time Range**  
+                                                {result['Start Time']} - {result['End Time']}
+                                                
+                                                📊 **Similarity Score**  
+                                                {result['Similarity']}
+                                                
+                                                🔗 **Video URL**
+                                            """)
+                                            if st.button("📋 Copy URL", key=f"copy_{idx}"):
+                                                st.code(result['Video URL'])
             
             st.markdown('</div>', unsafe_allow_html=True)
 
