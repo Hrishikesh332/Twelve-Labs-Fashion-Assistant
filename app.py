@@ -1,7 +1,6 @@
 import streamlit as st
 import time
 from twelvelabs import TwelveLabs
-from pymilvus import MilvusClient
 import torch
 from torchvision import models, transforms
 from PIL import Image
@@ -16,13 +15,11 @@ from pymilvus import (
     FieldSchema, 
     DataType,
     CollectionSchema, 
-    Collection
+    Collection,
+    utility
 )
 
 load_dotenv()
-
-from milvus import default_server
-
 
 TWELVELABS_API_KEY = os.getenv('TWELVELABS_API_KEY')
 MILVUS_DB_NAME = os.getenv('MILVUS_DB_NAME')
@@ -32,78 +29,58 @@ MILVUS_PORT = os.getenv('MILVUS_PORT')
 URL = os.getenv('URL')
 TOKEN = os.getenv('TOKEN')
 
-ENDPOINT=URL
+# Connect to Milvus
 connections.connect(
-   uri=ENDPOINT,
-   token=TOKEN)
-
+   uri=URL,
+   token=TOKEN
+)
 
 st.write(TWELVELABS_API_KEY)
 
+# Define collection name
 collection_name = COLLECTION_NAME
 
-# # Define the schema fields
-# fields = [
-#     FieldSchema("pk", DataType.INT64, is_primary=True, auto_id=True),
-#     FieldSchema("vector", DataType.FLOAT_VECTOR, dim=1024),  # Keeping your 1024 dimension
-# ]
+# Drop existing collection if it exists
+if utility.has_collection(collection_name):
+    utility.drop_collection(collection_name)
 
-# # Create the schema with dynamic fields enabled
-# schema = CollectionSchema(
-#     fields,
-#     enable_dynamic_field=True,
-# )
-
-# # # Check if collection exists and drop if necessary
-# # if Collection.exists(collection_name):
-# #     Collection(collection_name).drop()
-
-# # Create the collection with the new schema
-# milvus_client = Collection(collection_name, schema)
-
-# # Create an index on the vector field
-# milvus_client.create_index(
-#     field_name="vector",
-#     index_params={
-#         "index_type": "AUTOINDEX",
-#         "metric_type": "COSINE",
-#     }
-# )
-
-
-# if not milvus_client.has_index():
-#     milvus_client.create_index(
-#         field_name="vector",
-#         index_params={
-#             "index_type": "IVF_FLAT",
-#             "metric_type": "COSINE",
-#             "params": {"nlist": 1024}
-#         }
-#     )
-
+# Create collection schema
+dim = 1024  # vector dimension
 fields = [
-    FieldSchema("pk", DataType.INT64, is_primary=True, auto_id=True),
-    FieldSchema("vector", DataType.FLOAT_VECTOR, dim=1024),
+    FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+    FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim),
+    FieldSchema(name="metadata", dtype=DataType.JSON)
 ]
 
-# Create the schema with dynamic fields enabled
 schema = CollectionSchema(
-    fields,
-    enable_dynamic_field=True,
+    fields=fields,
+    description="Video search collection"
 )
 
-# Create the collection with the schema
-milvus_client = Collection(collection_name, schema)
+# Create collection
+collection = Collection(
+    name=collection_name,
+    schema=schema,
+    using='default'
+)
 
-# Create an index on the vector field
+# Create index
 index_params = {
     "metric_type": "COSINE",
-    "index_type": "AUTOINDEX",
-    "params": {}
+    "index_type": "IVF_FLAT",
+    "params": {"nlist": 128}
 }
 
-milvus_client.create_index("vector", index_params)
-milvus_client.load()
+collection.create_index(
+    field_name="vector", 
+    index_params=index_params
+)
+
+# Load collection
+collection.load()
+
+# Update the milvus_client reference to use our collection
+milvus_client = collection
 
 st.write(f"Collection '{collection_name}' created successfully")
 st.write("Hello")
@@ -238,72 +215,54 @@ class ImageEncoder:
 
 
 def insert_embeddings(embeddings, video_url):
-    """
-    Insert embeddings into Milvus collection
-    """
+    data = []
+    timestamp = int(time.time())
+    
+    for i, emb in enumerate(embeddings):
+        data.append({
+            "id": int(f"{timestamp}{i:03d}"),  
+            "vector": emb['embedding'],
+            "metadata": {
+                "scope": emb['embedding_scope'],
+                "start_time": emb['start_offset_sec'],
+                "end_time": emb['end_offset_sec'],
+                "video_url": video_url
+            }
+        })
+
     try:
-        entities = []
-        
-        for emb in embeddings:
-            entities.append({
-                "vector": emb['embedding'],
-                "metadata": {
-                    "scope": emb['embedding_scope'],
-                    "start_time": emb['start_offset_sec'],
-                    "end_time": emb['end_offset_sec'],
-                    "video_url": video_url
-                }
-            })
-            
-        # Insert data into collection
-        mr = milvus_client.insert(entities)
-        
-        # Load and flush to ensure data is searchable
-        milvus_client.load()
-        milvus_client.flush()
-        
-        return True, len(entities)
-        
+        insert_result = milvus_client.insert(
+            collection_name=COLLECTION_NAME,
+            data=data
+        )
+        return True, len(data)
     except Exception as e:
-        print(f"Insert error details: {str(e)}")
         return False, str(e)
+
 
 def search_similar_videos(image, top_k=5):
     encoder = ImageEncoder()
     features = encoder.encode(image)
     
-    try:
-        # Make sure collection is loaded
-        milvus_client.load()
-        
-        # Perform search
-        results = milvus_client.search(
-            data=[features],
-            anns_field="vector",
-            param={
-                "metric_type": "COSINE",
-                "params": {"nprobe": 10}
-            },
-            limit=top_k,
-            output_fields=["metadata"]
-        )
-        
-        search_results = []
-        for hits in results:
-            for hit in hits:
-                metadata = hit.entity.get('metadata')
-                if metadata:
-                    search_results.append({
-                        'Start Time': f"{metadata['start_time']:.1f}s",
-                        'End Time': f"{metadata['end_time']:.1f}s",
-                        'Video URL': metadata['video_url'],
-                        'Similarity': f"{(1 - float(hit.distance)) * 100:.2f}%"
-                    })
-        
-        return search_results
-    except Exception as e:
-        print(f"Search error details: {str(e)}")
-        return []
+    results = milvus_client.search(
+        collection_name=COLLECTION_NAME,
+        data=[features],
+        output_fields=["metadata"],
+        search_params={"metric_type": "COSINE", "params": {"nprobe": 10}},
+        limit=top_k
+    )
+    
+    search_results = []
+    for result in results[0]:
+        metadata = result['entity']['metadata']
+        search_results.append({
+            'Start Time': f"{metadata['start_time']:.1f}s",
+            'End Time': f"{metadata['end_time']:.1f}s",
+            'Video URL': metadata['video_url'],
+            'Similarity': f"{(1 - abs(result['distance'])) * 100:.2f}%"
+        })
+    
+    return search_results
 def main():
     st.title("Video Search and Embedding System")
     
