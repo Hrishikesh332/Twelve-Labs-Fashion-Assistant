@@ -104,7 +104,7 @@ milvus_client = collection
 # # Load collection
 # milvus_client.load_collection(collection_name)
 
-st.write(f"Collection '{collection_name}' created successfully")
+st.write(f"Collection '{COLLECTION_NAME}' created successfully")
 st.write("Hello")
 
 st.markdown("""
