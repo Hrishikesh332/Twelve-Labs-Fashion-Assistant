@@ -435,7 +435,8 @@ def create_video_embed(video_url, start_time, end_time):
 
         
 def main():
-    st.title("Video Search and Embedding System")
+
+    st.markdown('<p class="big-font">Video Product Search Assitant</p>', unsafe_allow_html=True)
     
     # Sidebar with system status
     with st.sidebar:
@@ -451,7 +452,7 @@ def main():
     tabs = st.tabs(["Add Videos", "Search Videos"])
     
     with tabs[0]:
-        st.header("Add New Video")
+        st.header("Add New Video to Knowledge Base")
         with st.container():
             st.markdown('<div class="content-section">', unsafe_allow_html=True)
             
@@ -489,7 +490,7 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
     
     with tabs[1]:
-        st.header("Search Similar Videos")
+        st.header("Search Similar Product Clips")
         with st.container():
             st.markdown('<div class="content-section">', unsafe_allow_html=True)
             
