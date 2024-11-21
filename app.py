@@ -562,7 +562,7 @@ def main():
                                                  {result['Description']}
                                                  
                                                  🔗 **Link**  
-                                                 [Open Link]({result['Link']})
+                                                 [Open Product]({result['Link']})
                                                  
                                                  🕒 **Time Range**  
                                                  {result['Start Time']} - {result['End Time']}
