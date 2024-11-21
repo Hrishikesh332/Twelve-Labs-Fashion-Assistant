@@ -3,10 +3,13 @@ import time
 from twelvelabs import TwelveLabs
 import torch
 from torchvision import models, transforms
-from PIL import Image
 import pandas as pd
 from urllib.parse import urlparse
 import uuid
+import io
+from PIL import Image
+import requests
+from pathlib import Path
 from dotenv import load_dotenv
 import os
 from pymilvus import MilvusClient
@@ -433,7 +436,63 @@ def create_video_embed(video_url, start_time, end_time):
     else:
         return f"<p>Unable to embed video from URL: {video_url}</p>"
 
-        
+def load_default_image():
+
+    default_image = Image.open("default_image.jpg")  # You'll need to provide this image
+    return default_image
+
+def display_image_selection():
+
+    st.markdown("""
+        <style>
+        .default-image-container {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .image-select-text {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("##### Upload New Image")
+        uploaded_file = st.file_uploader(
+            "Choose an image",
+            type=['png', 'jpg', 'jpeg'],
+            help="Select an image to find similar video segments"
+        )
+
+    with col2:
+        st.markdown("##### Or Use Default Image")
+        use_default = st.checkbox("Use default image", value=not bool(uploaded_file))
+
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file)
+        image_source = "Uploaded Image"
+    elif use_default:
+        try:
+            image = load_default_image()
+            image_source = "Default Image"
+        except Exception as e:
+            st.error("Error loading default image. Please upload an image instead.")
+            return None, None
+    else:
+        return None, None
+
+    if image is not None:
+        st.markdown(f"**Selected {image_source}:**")
+        st.image(image, width=300)
+
+    return image, image_source
+
+    
 def main():
 
     st.markdown("""
@@ -494,57 +553,86 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
     
     with tabs[1]:
-        st.subheader("Search Similar Product Clips")
+        st.header("Search Similar Videos")
         with st.container():
             st.markdown('<div class="content-section">', unsafe_allow_html=True)
             
-            col1, col2 = st.columns([1, 2])
+            # Create two main columns for the search interface
+            left_col, right_col = st.columns([1, 2])
             
-            with col1:
-                uploaded_file = st.file_uploader(
-                    "Upload Image",
-                    type=['png', 'jpg', 'jpeg'],
-                    help="Select an image to find similar video segments"
+            with left_col:
+                st.markdown("### Image Selection")
+                
+                # Image selection radio
+                image_option = st.radio(
+                    "Choose image source",
+                    ["Upload Image", "Use Default Image"],
+                    index=0
                 )
                 
-                if uploaded_file:
-                    st.image(uploaded_file, caption="Query Image", use_column_width=True)
+                if image_option == "Upload Image":
+                    uploaded_file = st.file_uploader(
+                        "Upload Image",
+                        type=['png', 'jpg', 'jpeg'],
+                        help="Select an image to find similar video segments"
+                    )
+                    if uploaded_file:
+                        st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
+                        selected_image = uploaded_file
+                    else:
+                        selected_image = None
+                else:
+                    try:
+                        default_image = load_default_image()
+                        st.image(default_image, caption="Default Image", use_column_width=True)
+                        
+                        # Convert PIL Image to bytes for processing
+                        img_byte_arr = io.BytesIO()
+                        default_image.save(img_byte_arr, format='JPEG')
+                        img_byte_arr = img_byte_arr.getvalue()
+                        selected_image = io.BytesIO(img_byte_arr)
+                    except Exception as e:
+                        st.error("Error loading default image")
+                        selected_image = None
             
-            with col2:
-                if uploaded_file:
-                    st.subheader("Search Parameters")
+            with right_col:
+                if selected_image:
+                    st.markdown("### Search Configuration")
+                    
+                    # Search parameters
                     top_k = st.slider(
                         "Number of results",
                         min_value=1,
                         max_value=20,
-                        value=2,
+                        value=5,
                         help="Select the number of similar videos to retrieve"
                     )
                     
-                    if st.button("Search", use_container_width=True):
+                    # Search button
+                    if st.button("Search Similar Videos", use_container_width=True):
                         with st.spinner("Searching for similar videos..."):
-                            results = search_similar_videos(uploaded_file, top_k=top_k)
+                            results = search_similar_videos(selected_image, top_k=top_k)
                             
                             if not results:
                                 st.warning("No similar videos found")
                             else:
-                                st.subheader("Results")
+                                st.markdown("### Search Results")
+                                
+                                # Display results sorted by confidence
                                 for idx, result in enumerate(results, 1):
-                                    with st.expander(f"Match #{idx} - Similarity: {result['Similarity']}", expanded=(idx==1)):
-                                        # Extract start and end times
-                                        start_time = float(result['Start Time'].replace('s', ''))
-                                        end_time = float(result['End Time'].replace('s', ''))
-                                        
+                                    similarity = float(result['Similarity'].rstrip('%'))
+                                    with st.expander(
+                                        f"Match #{idx} - Similarity: {result['Similarity']}", 
+                                        expanded=(idx==1)
+                                    ):
                                         # Create two columns for video and details
                                         video_col, details_col = st.columns([2, 1])
                                         
                                         with video_col:
                                             st.markdown("#### Video Segment")
-                                            # Embed video starting at the specific time
                                             video_embed = create_video_embed(
                                                 result['Video URL'],
-                                                start_time,
-                                                end_time
+                                                result['Start Time']
                                             )
                                             st.markdown(video_embed, unsafe_allow_html=True)
                                         
@@ -559,8 +647,17 @@ def main():
                                                 
                                                 🔗 **Video URL**
                                             """)
+                                            
+                                            # URL and timestamp handling
+                                            start_seconds = int(float(result['Start Time'].replace('s', '')))
+                                            
+                                            # Copy URL button
                                             if st.button("📋 Copy URL", key=f"copy_{idx}"):
                                                 st.code(result['Video URL'])
+
+
+                else:
+                    st.info("Please select an image to start searching.")
             
             st.markdown('</div>', unsafe_allow_html=True)
 
