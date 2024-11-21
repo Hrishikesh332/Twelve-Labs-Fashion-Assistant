@@ -116,6 +116,19 @@ milvus_client = collection
 # Clean, professional CSS styling
 st.markdown("""
     <style>
+
+          [data-testid="stAppViewContainer"] {
+             background-image: url("https://img.freepik.com/free-photo/vivid-blurred-colorful-wallpaper-background_58702-3883.jpg");
+             background-size: cover;
+         }
+         [data-testid="stHeader"] {
+             background-color: rgba(0,0,0,0);
+         }
+         [data-testid="stToolbar"] {
+             right: 2rem;
+             background-image: url("");
+             background-size: cover;
+         }
         /* Base styling */
         .stApp {
             background-color: #f8f9fa;
