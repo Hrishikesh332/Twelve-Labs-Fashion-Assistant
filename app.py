@@ -372,6 +372,9 @@ def search_similar_videos(image, top_k=5):
             metadata = hit.entity.get('metadata')
             if metadata:
                 search_results.append({
+                    'Title': metadata['title'],
+                    'Description': metadata['description'],
+                    'Link': metadata['link'],
                     'Start Time': f"{metadata['start_time']:.1f}s",
                     'End Time': f"{metadata['end_time']:.1f}s",
                     'Video URL': metadata['video_url'],
