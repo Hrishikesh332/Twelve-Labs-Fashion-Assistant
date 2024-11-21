@@ -553,16 +553,26 @@ def main():
                                         
                                         with details_col:
                                             st.markdown("#### Details")
-                                            st.markdown(result)
+                                           
                                             st.markdown(f"""
-                                                🕒 **Time Range**  
-                                                {result['Start Time']} - {result['End Time']}
-                                                
-                                                📊 **Similarity Score**  
-                                                {result['Similarity']}
-                                                
-                                                🔗 **Video URL**
-                                            """)
+                                                 📝 **Title**  
+                                                 {result['Title']}
+                                                 
+                                                 📖 **Description**  
+                                                 {result['Description']}
+                                                 
+                                                 🔗 **Link**  
+                                                 [Open Link]({result['Link']})
+                                                 
+                                                 🕒 **Time Range**  
+                                                 {result['Start Time']} - {result['End Time']}
+                                                 
+                                                 🎥 **Video URL**  
+                                                 [Watch Video]({result['Video URL']})
+                                                 
+                                                 📊 **Similarity Score**  
+                                                 {result['Similarity']}
+                                             """)
                                             if st.button("📋 Copy URL", key=f"copy_{idx}"):
                                                 st.code(result['Video URL'])
             
