@@ -550,6 +550,7 @@ def main():
                                         
                                         with details_col:
                                             st.markdown("#### Details")
+                                            st.markdown(result)
                                             st.markdown(f"""
                                                 🕒 **Time Range**  
                                                 {result['Start Time']} - {result['End Time']}
