@@ -531,16 +531,16 @@ def main():
                                 st.subheader("Results")
                                 for idx, result in enumerate(results, 1):
                                     with st.expander(f"Match #{idx} - Similarity: {result['Similarity']}", expanded=(idx==1)):
-                                        # Extract start and end times
+                                    
                                         start_time = float(result['Start Time'].replace('s', ''))
                                         end_time = float(result['End Time'].replace('s', ''))
                                         
-                                        # Create two columns for video and details
+                                       
                                         video_col, details_col = st.columns([2, 1])
                                         
                                         with video_col:
                                             st.markdown("#### Video Segment")
-                                            # Embed video starting at the specific time
+                                       
                                             video_embed = create_video_embed(
                                                 result['Video URL'],
                                                 start_time,
