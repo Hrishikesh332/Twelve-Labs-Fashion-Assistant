@@ -297,7 +297,7 @@ def generate_embedding(video_url):
             
        
    
-def image_embedding(twelvelabs_client, image_file):
+def image_embedding(twelvelabs_client, image_file, verbose: bool = True) -> dict:
 
     embedding_result = twelvelabs_client.embed.create(
         engine_name="Marengo-retrieval-2.6",
