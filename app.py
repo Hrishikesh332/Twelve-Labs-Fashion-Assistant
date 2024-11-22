@@ -297,15 +297,10 @@ def generate_embedding(video_url):
             
        
    
-def image_embedding(
-    twelvelabs_client: TwelveLabs,
-    image_file: Union[str, Path],
-    engine_name: str = "Marengo-retrieval-2.6",
-    verbose: bool = True
-) -> dict:
+def image_embedding(twelvelabs_client, image_file)
 
     embedding_result = twelvelabs_client.embed.create(
-        engine_name=engine_name,
+        engine_name="Marengo-retrieval-2.6",
         image_file=image_file
     )
     
