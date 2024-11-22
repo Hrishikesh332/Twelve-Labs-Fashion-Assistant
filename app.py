@@ -297,19 +297,19 @@ def generate_embedding(video_url):
             
        
    
-def image_embedding(twelvelabs_client, image_file, verbose: bool = True) -> dict:
+def image_embedding(twelvelabs_client, image_file):
 
     embedding_result = twelvelabs_client.embed.create(
         engine_name="Marengo-retrieval-2.6",
         image_file=image_file
     )
     
-    if verbose:
-        print("Created an image embedding")
-        print(f" Engine: {embedding_result.engine_name}")
-        if embedding_result.image_embedding and embedding_result.image_embedding.segments:
-            first_segment = embedding_result.image_embedding.segments[0]
-            print(f" Embedding: {first_segment.embeddings_float[:5]}... (truncated)")
+    # if verbose:
+    #     print("Created an image embedding")
+    #     print(f" Engine: {embedding_result.engine_name}")
+    #     if embedding_result.image_embedding and embedding_result.image_embedding.segments:
+    #         first_segment = embedding_result.image_embedding.segments[0]
+    #         print(f" Embedding: {first_segment.embeddings_float[:5]}... (truncated)")
     
     return embedding_result.image_embedding.segments[0].embeddings_float
 
