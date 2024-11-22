@@ -1,8 +1,8 @@
 import streamlit as st
 import time
 from twelvelabs import TwelveLabs
-import torch
-from torchvision import models, transforms
+# import torch
+# from torchvision import models, transforms
 from PIL import Image
 import pandas as pd
 from urllib.parse import urlparse
