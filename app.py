@@ -295,6 +295,8 @@ def generate_embedding(video_url):
         print(f"Error in generate_embedding: {str(e)}")
         return None, None, str(e)
             
+       
+   
 def image_embedding(
     twelvelabs_client: TwelveLabs,
     image_file: Union[str, Path],
@@ -317,34 +319,34 @@ def image_embedding(
     return embedding_result.image_embedding.segments[0].embeddings_float
 
 
-class ImageEncoder:
-    def __init__(self):
-        self.model = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
-        self.model = torch.nn.Sequential(*list(self.model.children())[:-1])
-        self.projection = torch.nn.Linear(512, 1024)
-        self.model.eval()
+# class ImageEncoder:
+#     def __init__(self):
+#         self.model = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
+#         self.model = torch.nn.Sequential(*list(self.model.children())[:-1])
+#         self.projection = torch.nn.Linear(512, 1024)
+#         self.model.eval()
     
-    def encode(self, image):
-        if isinstance(image, str):
-            img = Image.open(image)
-        else:
-            img = Image.open(image)
-        img = img.convert('RGB')
+#     def encode(self, image):
+#         if isinstance(image, str):
+#             img = Image.open(image)
+#         else:
+#             img = Image.open(image)
+#         img = img.convert('RGB')
         
-        transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
+#         transform = transforms.Compose([
+#             transforms.Resize(256),
+#             transforms.CenterCrop(224),
+#             transforms.ToTensor(),
+#             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+#         ])
         
-        img = transform(img).unsqueeze(0)
+#         img = transform(img).unsqueeze(0)
         
-        with torch.no_grad():
-            features = self.model(img).squeeze()
-            features = self.projection(features)
+#         with torch.no_grad():
+#             features = self.model(img).squeeze()
+#             features = self.projection(features)
         
-        return features.numpy()
+#         return features.numpy()
 
 def insert_embeddings(embeddings, video_url):
     data = []
