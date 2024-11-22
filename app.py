@@ -295,7 +295,26 @@ def generate_embedding(video_url):
         print(f"Error in generate_embedding: {str(e)}")
         return None, None, str(e)
             
+def image_embedding(
+    twelvelabs_client: TwelveLabs,
+    image_file: Union[str, Path],
+    engine_name: str = "Marengo-retrieval-2.6",
+    verbose: bool = True
+) -> dict:
 
+    embedding_result = twelvelabs_client.embed.create(
+        engine_name=engine_name,
+        image_file=image_file
+    )
+    
+    if verbose:
+        print("Created an image embedding")
+        print(f" Engine: {embedding_result.engine_name}")
+        if embedding_result.image_embedding and embedding_result.image_embedding.segments:
+            first_segment = embedding_result.image_embedding.segments[0]
+            print(f" Embedding: {first_segment.embeddings_float[:5]}... (truncated)")
+    
+    return embedding_result.image_embedding.segments[0].embeddings_float
 
 
 class ImageEncoder:
@@ -354,12 +373,19 @@ def insert_embeddings(embeddings, video_url):
 
 
 def search_similar_videos(image, top_k=5):
-    encoder = ImageEncoder()
-    features = encoder.encode(image)
+    # encoder = ImageEncoder()
+    # features = encoder.encode(image)
+    twelvelabs_client = TwelveLabs(api_key=TWELVELABS_API_KEY)
+
+    features = image_embedding(
+    twelvelabs_client=twelvelabs_client,
+    image_file=image
+   )
+
     
 
     results = milvus_client.search(
-        data=[features],
+        data=features,
         anns_field="vector",
         param={"metric_type": "COSINE", "params": {"nprobe": 10}},
         limit=top_k,
