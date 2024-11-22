@@ -382,7 +382,7 @@ def search_similar_videos(image, top_k=5):
     
 
     results = milvus_client.search(
-        data=features,
+        data=[features],
         anns_field="vector",
         param={"metric_type": "COSINE", "params": {"nprobe": 10}},
         limit=top_k,
